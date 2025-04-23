@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import {
 		beforeUpdate,
 		afterUpdate,
@@ -198,173 +197,179 @@
 			destroy: () => _el.removeEventListener("input", resize)
 		};
 	}
-
-	type Line = {
-		speaker: string;
-		text: string;
-	};
-
-	let lines: Line[] = [];
-
-	onMount(() => {
-		if (lines.length === 0) {
-			lines = [{ speaker: speakers[0] || '', text: '' }];
-		}
-	});
-
-	function addLine(index: number) {
-		lines = [
-			...lines.slice(0, index + 1),
-			{ speaker: speakers[0] || '', text: '' },
-			...lines.slice(index + 1)
-		];
-	}
-
-	function updateLineSpeaker(index: number, value: string) {
-		lines[index].speaker = value;
-		lines = [...lines];
-	}
-
-	function updateLineText(index: number, event: InputEvent) {
-		const target = event.target as HTMLInputElement;
-		lines[index].text = target.value;
-		lines = [...lines];
-	}
-
-	let showPickerIndex: number | null = null;
-	let pickerFilter = '';
-
-	function handleKeyup(event: KeyboardEvent, idx: number) {
-		const input = event.target as HTMLInputElement;
-		const cursorPos = input.selectionStart || 0;
-		const val = input.value;
-		const lastColon = val.lastIndexOf(':', cursorPos - 1);
-		if (lastColon >= 0) {
-			pickerFilter = val.slice(lastColon + 1, cursorPos);
-			showPickerIndex = idx;
-		} else {
-			showPickerIndex = null;
-		}
-	}
-
-	function selectEmotion(emotion: string, idx: number) {
-		const line = lines[idx];
-		const input: HTMLInputElement = document.getElementById(`line-input-${idx}`) as HTMLInputElement;
-		const cursorPos = input.selectionStart || 0;
-		const text = line.text;
-		const lastColon = text.lastIndexOf(':', cursorPos - 1);
-		const before = text.slice(0, lastColon);
-		const after = text.slice(cursorPos);
-		line.text = `${before}:${emotion}:${after}`;
-		lines = [...lines];
-		showPickerIndex = null;
-		const newPos = (before + `:${emotion}:`).length;
-		setTimeout(() => {
-			input.focus();
-			input.setSelectionRange(newPos, newPos);
-		}, 0);
-	}
 </script>
 
-<div class="dialogue-container">
-	<div class="dialogue-header">Dialogue</div>
-	<div class="lines-container">
-		{#each lines as line, idx}
-			<div class="line">
-				<select bind:value={line.speaker} on:change={(e) => updateLineSpeaker(idx, e.target.value)}>
-					{#each speakers as sp}
-						<option value={sp}>{sp}</option>
-					{/each}
-				</select>
-				<div class="text-wrapper">
-					<input
-						id={`line-input-${idx}`}
-						type="text"
-						bind:value={line.text}
-						placeholder="Type dialogue..."
-						on:input={(e) => updateLineText(idx, e)}
-						on:keyup={(e) => handleKeyup(e, idx)}
-					/>
-					{#if showPickerIndex === idx}
-						<ul class="picker">
-							{#each emotions.filter(em => em.toLowerCase().startsWith(pickerFilter.toLowerCase())) as em}
-								<li on:click={() => selectEmotion(em, idx)}>{em}</li>
-							{/each}
-						</ul>
-					{/if}
-				</div>
-				<button class="add-button" on:click={() => addLine(idx)}>+</button>
-			</div>
-		{/each}
+<!-- svelte-ignore a11y-autofocus -->
+<label class:container class:show_textbox_border>
+	{#if show_label && show_copy_button}
+		{#if copied}
+			<button
+				in:fade={{ duration: 300 }}
+				class="copy-button"
+				aria-label="Copied"
+				aria-roledescription="Text copied"><Check /></button
+			>
+		{:else}
+			<button
+				on:click={handle_copy}
+				class="copy-button"
+				aria-label="Copy"
+				aria-roledescription="Copy text"><Copy /></button
+			>
+		{/if}
+	{/if}
+	
+	<!-- svelte-ignore missing-declaration -->
+	<BlockTitle {root} {show_label} {info}>{label}</BlockTitle>
+
+	<div class="input-container">
+		<textarea
+			data-testid="textbox"
+			use:text_area_resize={value}
+			class="scroll-hide"
+			dir={rtl ? "rtl" : "ltr"}
+			class:no-label={!show_label}
+			bind:value
+			bind:this={el}
+			{placeholder}
+			rows={lines}
+			{disabled}
+			{autofocus}
+			maxlength={max_length}
+			on:keypress={handle_keypress}
+			on:blur
+			on:select={handle_select}
+			on:focus
+			on:scroll={handle_scroll}
+			style={text_align ? "text-align: " + text_align : ""}
+		/>
+		<button
+			class="submit-button"
+			class:padded-button={false}
+			on:click={handle_submit}
+		>
+			<Send />
+		</button>
 	</div>
-</div>
+</label>
 
 <style>
-	.dialogue-container {
-		border: 1px solid #000;
-		border-radius: 5px;
-		padding: 10px;
-	}
-	.dialogue-header {
-		background: #4a90e2;
-		color: #fff;
-		padding: 10px;
-		font-size: 1.2em;
-		font-weight: bold;
-		border-radius: 5px 5px 0 0;
-	}
-	.lines-container {
-		margin-top: 10px;
-	}
-	.line {
-		display: flex;
-		align-items: center;
-		margin-bottom: 8px;
-	}
-	.line select {
-		width: 100px;
-		margin-right: 10px;
-		background: #ffc600;
-		font-weight: bold;
-		border: 1px solid #000;
-		border-radius: 3px;
-	}
-	.text-wrapper {
-		position: relative;
-		flex-grow: 1;
-	}
-	.text-wrapper input {
+	label {
+		display: block;
 		width: 100%;
-		padding: 5px;
-		border: 1px solid #000;
-		border-radius: 3px;
 	}
-	.picker {
-		position: absolute;
-		top: 100%;
-		left: 0;
-		background: #fff;
-		border: 1px solid #000;
-		border-radius: 3px;
-		max-height: 100px;
-		overflow-y: auto;
-		list-style: none;
-		margin: 2px 0 0;
-		padding: 0;
-		z-index: 10;
-	}
-	.picker li {
-		padding: 5px;
-		cursor: pointer;
-	}
-	.picker li:hover {
-		background: #eee;
-	}
-	.add-button {
-		margin-left: 10px;
-		font-size: 1.5em;
-		background: none;
+
+	textarea {
+		flex-grow: 1;
+		outline: none !important;
+		margin-top: 0px;
+		margin-bottom: 0px;
+		resize: none;
+		z-index: 1;
+		display: block;
+		position: relative;
+		outline: none !important;
+		background: var(--input-background-fill);
+		padding: var(--input-padding);
+		width: 100%;
+		color: var(--body-text-color);
+		font-weight: var(--input-text-weight);
+		font-size: var(--input-text-size);
+		line-height: var(--line-sm);
 		border: none;
+	}
+	textarea.no-label {
+		padding-top: 5px;
+		padding-bottom: 5px;
+	}
+	label.show_textbox_border textarea {
+		box-shadow: var(--input-shadow);
+	}
+	label:not(.container),
+	label:not(.container) textarea {
+		height: 100%;
+	}
+	label.container.show_textbox_border textarea {
+		border: var(--input-border-width) solid var(--input-border-color);
+		border-radius: var(--input-radius);
+	}
+	textarea:disabled {
+		-webkit-opacity: 1;
+		opacity: 1;
+	}
+
+	label.container.show_textbox_border textarea:focus {
+		box-shadow: var(--input-shadow-focus);
+		border-color: var(--input-border-color-focus);
+		background: var(--input-background-fill-focus);
+	}
+
+	textarea::placeholder {
+		color: var(--input-placeholder-color);
+	}
+
+	.copy-button {
+		display: flex;
+		position: absolute;
+		top: var(--block-label-margin);
+		right: var(--block-label-margin);
+		align-items: center;
+		box-shadow: var(--shadow-drop);
+		border: 1px solid var(--border-color-primary);
+		border-top: none;
+		border-right: none;
+		border-radius: var(--block-label-right-radius);
+		background: var(--block-label-background-fill);
+		padding: 5px;
+		width: 22px;
+		height: 22px;
+		overflow: hidden;
+		color: var(--block-label-color);
+		font: var(--font-sans);
+		font-size: var(--button-small-text-size);
+	}
+
+	/* Same submit button style as MultimodalTextbox for the consistent UI */
+	.input-container {
+		display: flex;
+		position: relative;
+		align-items: flex-end;
+	}
+	.submit-button {
+		border: none;
+		text-align: center;
+		text-decoration: none;
+		font-size: 14px;
 		cursor: pointer;
+		border-radius: 15px;
+		min-width: 30px;
+		height: 30px;
+		flex-shrink: 0;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		z-index: var(--layer-1);
+	}
+	.submit-button {
+		background: var(--button-secondary-background-fill);
+		color: var(--button-secondary-text-color);
+	}
+	.submit-button:hover {
+		background: var(--button-secondary-background-fill-hover);
+	}
+	.submit-button:disabled {
+		background: var(--button-secondary-background-fill);
+		cursor: pointer;
+	}
+	.submit-button:active {
+		box-shadow: var(--button-shadow-active);
+	}
+	.submit-button :global(svg) {
+		height: 22px;
+		width: 22px;
+	}
+
+	.padded-button {
+		padding: 0 10px;
 	}
 </style>
