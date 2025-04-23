@@ -1,29 +1,63 @@
-<script lang="ts">
-	import { JsonView } from "@zerodevx/svelte-json-view";
+<svelte:options accessors={true} />
 
-	import type { Gradio } from "@gradio/utils";
-	import { Block, Info } from "@gradio/atoms";
+<script context="module" lang="ts">
+	export { default as BaseDialogue } from "./Dialogue.svelte";
+	export { default as BaseExample } from "./Example.svelte";
+</script>
+
+<script lang="ts">
+	import type { Gradio, SelectData, CopyData } from "@gradio/utils";
+	import Dialogue from "./Dialogue.svelte";
+	import { Block } from "@gradio/atoms";
 	import { StatusTracker } from "@gradio/statustracker";
 	import type { LoadingStatus } from "@gradio/statustracker";
-	import type { SelectData } from "@gradio/utils";
 
+	export let gradio: Gradio<{
+		change: string;
+		submit: never;
+		blur: never;
+		select: SelectData;
+		input: never;
+		focus: never;
+		clear_status: LoadingStatus;
+		copy: CopyData;
+	}>;
+	export let label = "Dialogue";
+	export let speakers: string[] = [];
+	export let emotions: string[] = [];
+	export let info: string | undefined = undefined;
 	export let elem_id = "";
 	export let elem_classes: string[] = [];
 	export let visible = true;
-	export let value = false;
+	export let value = "";
+	export let show_label: boolean;
+	export let max_lines: number | undefined = undefined;
 	export let container = true;
 	export let scale: number | null = null;
 	export let min_width: number | undefined = undefined;
-	export let loading_status: LoadingStatus;
-	export let gradio: Gradio<{
-		change: never;
-		select: SelectData;
-		input: never;
-		clear_status: LoadingStatus;
-	}>;
+	export let show_copy_button = false;
+	export let loading_status: LoadingStatus | undefined = undefined;
+	export let value_is_output = false;
+	export let rtl = false;
+	export let text_align: "left" | "right" | undefined = undefined;
+	export let autofocus = false;
+	export let autoscroll = true;
+	export let interactive: boolean;
+	export let root: string;
+	export let max_length: number | undefined = undefined;
 </script>
 
-<Block {visible} {elem_id} {elem_classes} {container} {scale} {min_width}>
+
+<!-- svelte-ignore missing-declaration -->
+<Block
+	{visible}
+	{elem_id}
+	{elem_classes}
+	{scale}
+	{min_width}
+	allow_overflow={true}
+	padding={container}
+>
 	{#if loading_status}
 		<StatusTracker
 			autoscroll={gradio.autoscroll}
@@ -33,5 +67,30 @@
 		/>
 	{/if}
 
-	<JsonView json={value} />
+	<Dialogue
+		bind:value
+		bind:value_is_output
+		{label}
+		{info}
+		{root}
+		{show_label}
+		{rtl}
+		{text_align}
+		{max_lines}
+		{show_copy_button}
+		{autofocus}
+		{container}
+		{autoscroll}
+		{max_length}
+		{speakers}
+		{emotions}
+		on:change={() => gradio.dispatch("change", value)}
+		on:input={() => gradio.dispatch("input")}
+		on:submit={() => gradio.dispatch("submit")}
+		on:blur={() => gradio.dispatch("blur")}
+		on:select={(e) => gradio.dispatch("select", e.detail)}
+		on:focus={() => gradio.dispatch("focus")}
+		on:copy={(e) => gradio.dispatch("copy", e.detail)}
+		disabled={!interactive}
+	/>
 </Block>

@@ -1,7 +1,7 @@
-from gradio.components.base import Component
+from gradio import Textbox
 
 
-class Dialogue(Component):
+class Dialogue(Textbox):
     def preprocess(self, payload):
         """
         This docstring is used to generate the docs for this custom component.
