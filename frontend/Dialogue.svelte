@@ -6,7 +6,7 @@
 		tick
 	} from "svelte";
 	import { BlockTitle } from "@gradio/atoms";
-	import { Copy, Check, Send, Square } from "@gradio/icons";
+	import { Copy, Check, Send, Plus } from "@gradio/icons";
 	import { fade } from "svelte/transition";
 	import type { SelectData, CopyData } from "@gradio/utils";
 
@@ -30,25 +30,103 @@
 	export let max_length: number | undefined = undefined;
 	export let root: string;
 
-	let el: HTMLTextAreaElement | HTMLInputElement;
-	let copied = false;
-	let timer: any;
-	let can_scroll: boolean;
-	let previous_scroll_top = 0;
-	let user_has_scrolled_up = false;
-	let _max_lines: number;
-
-	const show_textbox_border = false;
-
-	$: if (max_lines === undefined) {
-		_max_lines = Math.max(lines, 20);
-	} else {
-		_max_lines = Math.max(max_lines, lines);
+	// Dialogue state
+	interface DialogueLine {
+		speaker: string;
+		text: string;
 	}
 
-	$: value, el && lines !== _max_lines && resize({ target: el });
+	let dialogueLines: DialogueLine[] = [];
+	
+	// Initialize the component
+	$: if (value === "" && dialogueLines.length === 0) {
+		initializeDialogueLines();
+	}
 
-	$: if (value === null) value = "";
+	// Initial setup and parsing
+	async function initializeDialogueLines() {
+		const defaultLine = { 
+			speaker: speakers.length > 0 ? speakers[0] : "", 
+			text: "" 
+		};
+		
+		if (value === "") {
+			dialogueLines = [defaultLine];
+		} else {
+			try {
+				dialogueLines = parseDialogueValue(value);
+			} catch (e) {
+				dialogueLines = [{ 
+					speaker: speakers.length > 0 ? speakers[0] : "", 
+					text: value 
+				}];
+			}
+		}
+		
+		// Initial sync from dialogueLines to value
+		if (dialogueLines.length > 0) {
+			value = formatDialogueValue(dialogueLines);
+		}
+	}
+
+	// Sync changes when dialogueLines updates
+	async function syncToValue() {
+		value = formatDialogueValue(dialogueLines);
+	}
+
+	// Update on value changes from outside
+	$: if (value) {
+		(async () => {
+			try {
+				dialogueLines = parseDialogueValue(value);
+			} catch (e) {
+				if (speakers.length > 0 && dialogueLines.length === 0) {
+					dialogueLines = [{ speaker: speakers[0], text: value }];
+				} else if (dialogueLines.length === 0) {
+					dialogueLines = [{ speaker: "", text: value }];
+				}
+			}
+		})();
+	}
+
+	function parseDialogueValue(val: string): DialogueLine[] {
+		try {
+			return JSON.parse(val);
+		} catch (e) {
+			return val.split("\n").map(line => {
+				const parts = line.split(":");
+				if (parts.length >= 2) {
+					const speaker = parts[0].trim();
+					const text = parts.slice(1).join(":").trim();
+					return { speaker, text };
+				}
+				return { speaker: speakers[0] || "", text: line.trim() };
+			});
+		}
+	}
+
+	function formatDialogueValue(lines: DialogueLine[]): string {
+		return JSON.stringify(lines);
+	}
+
+	function addLine(index: number): void {
+		const newSpeaker = speakers.length > 0 ? speakers[0] : "";
+		dialogueLines = [
+			...dialogueLines.slice(0, index + 1),
+			{ speaker: newSpeaker, text: "" },
+			...dialogueLines.slice(index + 1)
+		];
+		syncToValue();
+	}
+
+	function updateLine(index: number, key: keyof DialogueLine, value: string): void {
+		dialogueLines[index][key] = value;
+		dialogueLines = [...dialogueLines]; // Trigger reactivity
+		syncToValue();
+	}
+
+	let copied = false;
+	let timer: any;
 
 	const dispatch = createEventDispatcher<{
 		change: string;
@@ -60,31 +138,13 @@
 		copy: CopyData;
 	}>();
 
-	beforeUpdate(() => {
-		can_scroll = el && el.offsetHeight + el.scrollTop > el.scrollHeight - 100;
-	});
-
-	const scroll = (): void => {
-		if (can_scroll && autoscroll && !user_has_scrolled_up) {
-			el.scrollTo(0, el.scrollHeight);
-		}
-	};
-
 	function handle_change(): void {
 		dispatch("change", value);
 		if (!value_is_output) {
 			dispatch("input");
 		}
 	}
-	afterUpdate(() => {
-		if (autofocus) {
-			el.focus();
-		}
-		if (can_scroll && autoscroll) {
-			scroll();
-		}
-		value_is_output = false;
-	});
+
 	$: value, handle_change();
 
 	async function handle_copy(): Promise<void> {
@@ -103,104 +163,14 @@
 		}, 1000);
 	}
 
-	function handle_select(event: Event): void {
-		const target: HTMLTextAreaElement | HTMLInputElement = event.target as
-			| HTMLTextAreaElement
-			| HTMLInputElement;
-		const text = target.value;
-		const index: [number, number] = [
-			target.selectionStart as number,
-			target.selectionEnd as number
-		];
-		dispatch("select", { value: text.substring(...index), index: index });
-	}
-
-	async function handle_keypress(e: KeyboardEvent): Promise<void> {
-		await tick();
-		if (e.key === "Enter" && e.shiftKey && lines > 1) {
-			e.preventDefault();
-			dispatch("submit");
-		} else if (
-			e.key === "Enter" &&
-			!e.shiftKey &&
-			lines === 1 &&
-			_max_lines >= 1
-		) {
-			e.preventDefault();
-			dispatch("submit");
-		}
-	}
-
-	function handle_scroll(event: Event): void {
-		const target = event.target as HTMLElement;
-		const current_scroll_top = target.scrollTop;
-		if (current_scroll_top < previous_scroll_top) {
-			user_has_scrolled_up = true;
-		}
-		previous_scroll_top = current_scroll_top;
-
-		const max_scroll_top = target.scrollHeight - target.clientHeight;
-		const user_has_scrolled_to_bottom = current_scroll_top >= max_scroll_top;
-		if (user_has_scrolled_to_bottom) {
-			user_has_scrolled_up = false;
-		}
-	}
-
 	function handle_submit(): void {
 		dispatch("submit");
 	}
 
-	async function resize(
-		event: Event | { target: HTMLTextAreaElement | HTMLInputElement }
-	): Promise<void> {
-		await tick();
-		if (lines === _max_lines) return;
-
-		const target = event.target as HTMLTextAreaElement;
-		const computed_styles = window.getComputedStyle(target);
-		const padding_top = parseFloat(computed_styles.paddingTop);
-		const padding_bottom = parseFloat(computed_styles.paddingBottom);
-		const line_height = parseFloat(computed_styles.lineHeight);
-
-		let max =
-			_max_lines === undefined
-				? false
-				: padding_top + padding_bottom + line_height * _max_lines;
-		let min = padding_top + padding_bottom + lines * line_height;
-
-		target.style.height = "1px";
-
-		let scroll_height;
-		if (max && target.scrollHeight > max) {
-			scroll_height = max;
-		} else if (target.scrollHeight < min) {
-			scroll_height = min;
-		} else {
-			scroll_height = target.scrollHeight;
-		}
-
-		target.style.height = `${scroll_height}px`;
-	}
-
-	function text_area_resize(
-		_el: HTMLTextAreaElement,
-		_value: string
-	): any | undefined {
-		if (lines === _max_lines) return;
-		_el.style.overflowY = "scroll";
-		_el.addEventListener("input", resize);
-
-		if (!_value.trim()) return;
-		resize({ target: _el });
-
-		return {
-			destroy: () => _el.removeEventListener("input", resize)
-		};
-	}
+	$: console.log(dialogueLines);
 </script>
 
-<!-- svelte-ignore a11y-autofocus -->
-<label class:container class:show_textbox_border>
+<label class:container>
 	{#if show_label && show_copy_button}
 		{#if copied}
 			<button
@@ -222,31 +192,50 @@
 	<!-- svelte-ignore missing-declaration -->
 	<BlockTitle {root} {show_label} {info}>{label}</BlockTitle>
 
-	<div class="input-container">
-		<textarea
-			data-testid="textbox"
-			use:text_area_resize={value}
-			class="scroll-hide"
-			dir={rtl ? "rtl" : "ltr"}
-			class:no-label={!show_label}
-			bind:value
-			bind:this={el}
-			{placeholder}
-			rows={lines}
-			{disabled}
-			{autofocus}
-			maxlength={max_length}
-			on:keypress={handle_keypress}
-			on:blur
-			on:select={handle_select}
-			on:focus
-			on:scroll={handle_scroll}
-			style={text_align ? "text-align: " + text_align : ""}
-		/>
+	<div class="dialogue-container">
+		{#each dialogueLines as line, i}
+			<div class="dialogue-line">
+				<div class="speaker-column">
+					<select 
+						bind:value={line.speaker} 
+						on:change={() => updateLine(i, "speaker", line.speaker)}
+						disabled={disabled}
+					>
+						{#if speakers.length === 0}
+							<option value="">Select speaker</option>
+						{/if}
+						{#each speakers as speaker}
+							<option value={speaker}>{speaker}</option>
+						{/each}
+					</select>
+				</div>
+				<div class="text-column">
+					<input 
+						type="text" 
+						bind:value={line.text} 
+						placeholder={placeholder}
+						disabled={disabled}
+					/>
+				</div>
+				<div class="action-column">
+					<button 
+						class="add-button" 
+						on:click={() => addLine(i)}
+						aria-label="Add new line"
+						disabled={disabled}
+					>
+						<Plus />
+					</button>
+				</div>
+			</div>
+		{/each}
+	</div>
+
+	<div class="submit-container">
 		<button
 			class="submit-button"
-			class:padded-button={false}
 			on:click={handle_submit}
+			disabled={disabled}
 		>
 			<Send />
 		</button>
@@ -259,53 +248,101 @@
 		width: 100%;
 	}
 
-	textarea {
-		flex-grow: 1;
-		outline: none !important;
-		margin-top: 0px;
-		margin-bottom: 0px;
-		resize: none;
-		z-index: 1;
-		display: block;
-		position: relative;
-		outline: none !important;
-		background: var(--input-background-fill);
-		padding: var(--input-padding);
-		width: 100%;
-		color: var(--body-text-color);
-		font-weight: var(--input-text-weight);
-		font-size: var(--input-text-size);
-		line-height: var(--line-sm);
-		border: none;
-	}
-	textarea.no-label {
-		padding-top: 5px;
-		padding-bottom: 5px;
-	}
-	label.show_textbox_border textarea {
-		box-shadow: var(--input-shadow);
-	}
-	label:not(.container),
-	label:not(.container) textarea {
-		height: 100%;
-	}
-	label.container.show_textbox_border textarea {
+	.dialogue-container {
 		border: var(--input-border-width) solid var(--input-border-color);
 		border-radius: var(--input-radius);
-	}
-	textarea:disabled {
-		-webkit-opacity: 1;
-		opacity: 1;
-	}
-
-	label.container.show_textbox_border textarea:focus {
-		box-shadow: var(--input-shadow-focus);
-		border-color: var(--input-border-color-focus);
-		background: var(--input-background-fill-focus);
+		background: var(--input-background-fill);
+		padding: var(--spacing-md);
+		margin-bottom: var(--spacing-sm);
 	}
 
-	textarea::placeholder {
-		color: var(--input-placeholder-color);
+	.dialogue-line {
+		display: flex;
+		align-items: center;
+		margin-bottom: var(--spacing-sm);
+	}
+
+	.speaker-column {
+		flex: 0 0 150px;
+		margin-right: var(--spacing-sm);
+	}
+
+	.speaker-column select {
+		width: 100%;
+		padding: var(--spacing-sm);
+		background-color: #f7d358;
+		border: 1px solid var(--border-color-primary);
+		border-radius: var(--radius-sm);
+		font-weight: bold;
+	}
+
+	.text-column {
+		flex: 1;
+		margin-right: var(--spacing-sm);
+	}
+
+	.text-column input {
+		width: 100%;
+		padding: var(--spacing-sm);
+		border: 1px solid var(--border-color-primary);
+		border-radius: var(--radius-sm);
+		background: rgb(100, 11, 11);
+	}
+
+	.action-column {
+		flex: 0 0 40px;
+		display: flex;
+		justify-content: center;
+	}
+
+	.add-button {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		width: 30px;
+		height: 30px;
+		border: none;
+		background: transparent;
+		cursor: pointer;
+	}
+
+	.add-button:hover {
+		color: var(--color-accent);
+	}
+
+	.submit-container {
+		display: flex;
+		justify-content: flex-end;
+	}
+
+	.submit-button {
+		border: none;
+		text-align: center;
+		text-decoration: none;
+		font-size: 14px;
+		cursor: pointer;
+		border-radius: 15px;
+		min-width: 30px;
+		height: 30px;
+		flex-shrink: 0;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		background: var(--button-secondary-background-fill);
+		color: var(--button-secondary-text-color);
+	}
+
+	.submit-button:hover {
+		background: var(--button-secondary-background-fill-hover);
+	}
+
+	.submit-button:active {
+		box-shadow: var(--button-shadow-active);
+	}
+
+	.submit-button :global(svg) {
+		height: 22px;
+		width: 22px;
 	}
 
 	.copy-button {
@@ -327,49 +364,5 @@
 		color: var(--block-label-color);
 		font: var(--font-sans);
 		font-size: var(--button-small-text-size);
-	}
-
-	/* Same submit button style as MultimodalTextbox for the consistent UI */
-	.input-container {
-		display: flex;
-		position: relative;
-		align-items: flex-end;
-	}
-	.submit-button {
-		border: none;
-		text-align: center;
-		text-decoration: none;
-		font-size: 14px;
-		cursor: pointer;
-		border-radius: 15px;
-		min-width: 30px;
-		height: 30px;
-		flex-shrink: 0;
-		display: flex;
-		justify-content: center;
-		align-items: center;
-		z-index: var(--layer-1);
-	}
-	.submit-button {
-		background: var(--button-secondary-background-fill);
-		color: var(--button-secondary-text-color);
-	}
-	.submit-button:hover {
-		background: var(--button-secondary-background-fill-hover);
-	}
-	.submit-button:disabled {
-		background: var(--button-secondary-background-fill);
-		cursor: pointer;
-	}
-	.submit-button:active {
-		box-shadow: var(--button-shadow-active);
-	}
-	.submit-button :global(svg) {
-		height: 22px;
-		width: 22px;
-	}
-
-	.padded-button {
-		padding: 0 10px;
 	}
 </style>
