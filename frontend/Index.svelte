@@ -11,9 +11,9 @@
 	import { Block } from "@gradio/atoms";
 	import { StatusTracker } from "@gradio/statustracker";
 	import type { LoadingStatus } from "@gradio/statustracker";
-
+	import { DialogueLine } from "./utils";
 	export let gradio: Gradio<{
-		change: string;
+		change: DialogueLine[];
 		submit: never;
 		blur: never;
 		select: SelectData;
@@ -22,14 +22,17 @@
 		clear_status: LoadingStatus;
 		copy: CopyData;
 	}>;
+
+
 	export let label = "Dialogue";
 	export let speakers: string[] = [];
 	export let emotions: string[] = [];
 	export let info: string | undefined = undefined;
+	export let placeholder: string | undefined = undefined;
 	export let elem_id = "";
 	export let elem_classes: string[] = [];
 	export let visible = true;
-	export let value = "";
+	export let value: DialogueLine[] = [];
 	export let show_label: boolean;
 	export let max_lines: number | undefined = undefined;
 	export let container = true;
@@ -38,13 +41,8 @@
 	export let show_copy_button = false;
 	export let loading_status: LoadingStatus | undefined = undefined;
 	export let value_is_output = false;
-	export let rtl = false;
-	export let text_align: "left" | "right" | undefined = undefined;
-	export let autofocus = false;
-	export let autoscroll = true;
 	export let interactive: boolean;
 	export let root: string;
-	export let max_length: number | undefined = undefined;
 </script>
 
 
@@ -74,16 +72,12 @@
 		{info}
 		{root}
 		{show_label}
-		{rtl}
-		{text_align}
 		{max_lines}
 		{show_copy_button}
-		{autofocus}
 		{container}
-		{autoscroll}
-		{max_length}
 		{speakers}
 		{emotions}
+		{placeholder}
 		on:change={() => gradio.dispatch("change", value)}
 		on:input={() => gradio.dispatch("input")}
 		on:submit={() => gradio.dispatch("submit")}
