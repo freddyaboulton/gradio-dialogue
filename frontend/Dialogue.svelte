@@ -7,6 +7,7 @@
 	import { Copy, Check, Send, Plus, Trash } from "@gradio/icons";
 	import { fade } from "svelte/transition";
 	import { BaseDropdown } from "@gradio/dropdown";
+	import DropdownOptions from "./DropdownOptions.svelte"
 	import type { SelectData, CopyData } from "@gradio/utils";
 	import { DialogueLine } from "./utils";
 
@@ -36,26 +37,21 @@
 	// Emotion autocomplete state
 	let showEmotionMenu = false;
 	let currentLineIndex = -1;
-	let emotionMenuPosition = { x: 0, y: 0 };
 	let filtered_emotions: string[] = [];
 	let input_elements: HTMLInputElement[] = [];
 	let old_value = JSON.stringify(value);
 
-	// Initialize the component
 	$: if (value.length === 0 && dialogue_lines.length === 0) {
 		dialogue_lines = [{ speaker: speakers[0], text: "" }];
 	}
 
 	$: {
-		// Ensure inputElements array has the same length as dialogueLines
 		if (dialogue_lines.length > input_elements.length) {
-			// Add null placeholders for new lines
 			input_elements = [
 				...input_elements,
 				...Array(dialogue_lines.length - input_elements.length).fill(null)
 			];
 		} else if (dialogue_lines.length < input_elements.length) {
-			// Trim extra elements
 			input_elements = input_elements.slice(0, dialogue_lines.length);
 		}
 	}
@@ -68,7 +64,6 @@
 			...dialogue_lines.slice(index + 1)
 		];
 		
-		// Focus the new input after render cycle
 		tick().then(() => {
 			if (input_elements[index + 1]) {
 				input_elements[index + 1].focus();
@@ -122,23 +117,6 @@
 		}
 
 		if (show_menu && position_reference_index !== -1 && dialogue_container_element) {
-			const container_rect = dialogue_container_element.getBoundingClientRect();
-			const input_rect = input.getBoundingClientRect();
-			// Calculate the horizontal pixel offset of the character at positionReferenceIndex
-			const caret_pixel_offset = get_caret_position(input, position_reference_index);
-
-			// Calculate caret's absolute screen position
-			// X: Input's left edge + caret's offset within the input
-			// Y: Input's bottom edge (to position menu below)
-			const caretScreenX = input_rect.left + caret_pixel_offset;
-			const caretScreenY = input_rect.bottom; 
-
-			// Convert absolute screen position to position relative to the container's top-left corner
-			emotionMenuPosition = {
-				x: caretScreenX - container_rect.left,
-				y: caretScreenY - container_rect.top
-			};
-			
 			showEmotionMenu = true;
 		} else {
 			showEmotionMenu = false;
@@ -154,30 +132,16 @@
 		return '';
 	}
 
-	function get_caret_position(input: HTMLInputElement, position: number): number {
-		const text = input.value.substring(0, position);
-		const tempElement = document.createElement('span');
-		tempElement.style.font = window.getComputedStyle(input).font;
-		tempElement.style.position = 'absolute';
-		tempElement.style.visibility = 'hidden';
-		tempElement.textContent = text;
-		document.body.appendChild(tempElement);
-		const width = tempElement.getBoundingClientRect().width;
-		document.body.removeChild(tempElement);
-		return width;
-	}
-
-	function insert_emotion(emotion: string): void {
+	function insert_emotion(e: CustomEvent): void {
+		const emotion = emotions[e.detail.target.dataset.index];
 		if (currentLineIndex >= 0 && currentLineIndex < dialogue_lines.length) {
 			const text = dialogue_lines[currentLineIndex].text;
 			const currentInput = input_elements[currentLineIndex];
 			const cursorPosition = currentInput?.selectionStart || 0;
 			
-			// Find the last colon before cursor
 			const lastColonIndex = text.lastIndexOf(':', cursorPosition - 1);
 			
 			if (lastColonIndex >= 0) {
-				// Replace text from colon to cursor with the emotion
 				const newText = text.substring(0, lastColonIndex) + 
 					`${emotion} ` + 
 					text.substring(cursorPosition);
@@ -236,9 +200,6 @@
 			old_value = JSON.stringify(value);
 		}
 	}
-
-	console.log("emotions", emotions)
-
 
 	$: sync_value(dialogue_lines);
 
@@ -358,17 +319,13 @@
 			<div 
 				id="emotion-menu"
 				class="emotion-menu" 
-				style="left: {emotionMenuPosition.x}px; top: {emotionMenuPosition.y}px;"
 				transition:fade={{ duration: 100 }}
 			>
-				{#each filtered_emotions as emotion}
-					<button 
-						class="emotion-item" 
-						on:click={() => insert_emotion(emotion)}
-					>
-						{emotion}
-					</button>
-				{/each}
+				<DropdownOptions
+					choices={emotions.map((s, i) => [s, i])}
+					filtered_indices={filtered_emotions.map(s => emotions.indexOf(s))}
+					show_options={true}
+					on:change={(e) => insert_emotion(e)}/>
 			</div>
 		{/if}
 	</div>
@@ -476,55 +433,6 @@
 
 	.add-button:hover {
 		color: var(--color-accent);
-	}
-
-	.emotion-menu {
-		position: absolute;
-		max-height: 200px;
-		max-width: 300px;
-		overflow-y: scroll;
-		background: var(--background-fill-primary);
-		border: 1px solid var(--border-color-primary);
-		box-shadow: var(--shadow-drop-lg);
-		border-radius: var(--container-radius);
-		z-index: 100;
-		display: flex;
-		flex-direction: column;
-	}
-
-	.options {
-		--window-padding: var(--size-8);
-		position: fixed;
-		z-index: var(--layer-top);
-		margin-left: 0;
-		box-shadow: var(--shadow-drop-lg);
-		border-radius: var(--container-radius);
-		background: var(--background-fill-primary);
-		min-width: fit-content;
-		max-width: inherit;
-		overflow: auto;
-		color: var(--body-text-color);
-		list-style: none;
-	}
-
-	.item {
-		display: flex;
-		cursor: pointer;
-		padding: var(--size-2);
-		word-break: break-word;
-	}
-
-	.emotion-item {
-		padding: var(--size-2);
-		border: none;
-		background: transparent;
-		text-align: left;
-		cursor: pointer;
-		color: var(--body-text-color);
-	}
-
-	.emotion-item:hover {
-		background-color: var(--color-background-secondary);
 	}
 
 	.submit-container {
