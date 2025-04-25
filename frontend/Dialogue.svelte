@@ -60,7 +60,7 @@
 		}
 	}
 
-	function addLine(index: number): void {
+	function add_line(index: number): void {
 		const newSpeaker = speakers.length > 0 ? speakers[0] : "";
 		dialogueLines = [
 			...dialogueLines.slice(0, index + 1),
@@ -83,13 +83,13 @@
 		];
 	}
 
-	function updateLine(index: number, key: keyof DialogueLine, value: string): void {
+	function update_line(index: number, key: keyof DialogueLine, value: string): void {
 		dialogueLines[index][key] = value;
-		dialogueLines = [...dialogueLines]; // Trigger reactivity
+		dialogueLines = [...dialogueLines];
 	}
 
 	// Handle input events to show emotion menu when ":" is typed
-	function handleInput(event: Event, index: number): void {
+	function handle_input(event: Event, index: number): void {
 		const input = event.target as HTMLInputElement;
 		// Store reference without losing existing references
 		if (input && !inputElements[index]) {
@@ -105,15 +105,15 @@
 			// Calculate position for the autocomplete menu
 			const rect = input.getBoundingClientRect();
 			console.log("rect", rect);
-			const caretPosition = getCaretPosition(input, cursorPosition);
+			const caret_position = get_caret_position(input, cursorPosition);
 			
 			emotionMenuPosition = {
-				x: rect.left,
+				x: rect.left + caret_position,
 				y: index * rect.height
 			};
 			
 			// Show emotion menu with filtered emotions
-			const searchText = getEmotionSearchText(text, cursorPosition);
+			const searchText = get_emotion_search_text(text, cursorPosition);
 			filteredEmotions = emotions.filter(emotion => 
 				searchText === '' || emotion.toLowerCase().includes(searchText.toLowerCase())
 			);
@@ -127,7 +127,7 @@
 				// Calculate position for the autocomplete menu
 				const rect = input.getBoundingClientRect();
 				console.log("rect", rect);
-				const caretPosition = getCaretPosition(input, lastColonIndex + 1);
+				const caretPosition = get_caret_position(input, lastColonIndex + 1);
 				
 				emotionMenuPosition = {
 					x: rect.left + caretPosition,
@@ -147,7 +147,7 @@
 	}
 
 	// Get the typed text after the last colon for filtering emotions
-	function getEmotionSearchText(text: string, cursorPosition: number): string {
+	function get_emotion_search_text(text: string, cursorPosition: number): string {
 		const lastColonIndex = text.lastIndexOf(':', cursorPosition - 1);
 		if (lastColonIndex >= 0) {
 			return text.substring(lastColonIndex + 1, cursorPosition);
@@ -155,8 +155,7 @@
 		return '';
 	}
 
-	// Calculate horizontal caret position for menu placement
-	function getCaretPosition(input: HTMLInputElement, position: number): number {
+	function get_caret_position(input: HTMLInputElement, position: number): number {
 		const text = input.value.substring(0, position);
 		const tempElement = document.createElement('span');
 		tempElement.style.font = window.getComputedStyle(input).font;
@@ -169,8 +168,7 @@
 		return width;
 	}
 
-	// Insert the selected emotion into the text field
-	function insertEmotion(emotion: string): void {
+	function insert_emotion(emotion: string): void {
 		if (currentLineIndex >= 0 && currentLineIndex < dialogueLines.length) {
 			const text = dialogueLines[currentLineIndex].text;
 			const currentInput = inputElements[currentLineIndex];
@@ -185,7 +183,7 @@
 					`${emotion} ` + 
 					text.substring(cursorPosition);
 				
-				updateLine(currentLineIndex, "text", newText);
+				update_line(currentLineIndex, "text", newText);
 				
 				// Move cursor to after the inserted emotion
 				tick().then(() => {
@@ -202,8 +200,7 @@
 		}
 	}
 
-	// Close the emotion menu when clicking outside
-	function handleClickOutside(event: MouseEvent): void {
+	function handle_click_outside(event: MouseEvent): void {
 		if (showEmotionMenu) {
 			const target = event.target as Node;
 			const emotionMenu = document.getElementById('emotion-menu');
@@ -272,7 +269,7 @@
 	}
 </script>
 
-<svelte:window on:click={handleClickOutside} />
+<svelte:window on:click={handle_click_outside} />
 
 <label class:container>
 	{#if show_label && show_copy_button}
@@ -302,7 +299,7 @@
 				<div class="speaker-column">
 					<BaseDropdown
 						bind:value={line.speaker}
-						on:change={() => updateLine(i, "speaker", line.speaker)}
+						on:change={() => update_line(i, "speaker", line.speaker)}
 						disabled={disabled}
 						choices={speakers.map(s => [s, s])}
 						show_label={false}
@@ -316,8 +313,8 @@
 							bind:value={line.text} 
 							placeholder={placeholder}
 							disabled={disabled}
-							on:input={(event) => handleInput(event, i)}
-						on:focus={(event) => handleInput(event, i)}
+							on:input={(event) => handle_input(event, i)}
+						on:focus={(event) => handle_input(event, i)}
 						on:keydown={(event) => {
 							if (event.key === 'Escape' && showEmotionMenu) {
 								showEmotionMenu = false;
@@ -332,7 +329,7 @@
 				<div class:action-column={i == 0}>
 					<button 
 						class="add-button" 
-						on:click={() => addLine(i)}
+						on:click={() => add_line(i)}
 						aria-label="Add new line"
 						disabled={disabled}
 					>
@@ -365,7 +362,7 @@
 				{#each filteredEmotions as emotion}
 					<button 
 						class="emotion-item" 
-						on:click={() => insertEmotion(emotion)}
+						on:click={() => insert_emotion(emotion)}
 					>
 						{emotion}
 					</button>
