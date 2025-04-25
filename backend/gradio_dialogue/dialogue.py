@@ -1,4 +1,5 @@
 from gradio import Textbox
+from gradio.components.base import server
 from gradio.data_classes import GradioModel, GradioRootModel
 from typing import Callable, List
 
@@ -34,14 +35,17 @@ class Dialogue(Textbox):
         elem_classes: list[str] | str | None = None,
         render: bool = True,
         key: int | str | None = None,
-        show_copy_button: bool = False,
         max_lines: int | None = None,
+        show_submit_button: bool = True,
+        show_copy_button: bool = True,
         ):
-        super().__init__(value=value, label=label, info=info, placeholder=placeholder, show_label=show_label, container=container, scale=scale, min_width=min_width, interactive=interactive, visible=visible, elem_id=elem_id, autofocus=autofocus, autoscroll=autoscroll, elem_classes=elem_classes, render=render, key=key, show_copy_button=show_copy_button, max_lines=max_lines)
+        super().__init__(value=value, label=label, info=info, placeholder=placeholder, show_label=show_label, container=container, scale=scale, min_width=min_width, interactive=interactive, visible=visible, elem_id=elem_id, autofocus=autofocus, autoscroll=autoscroll, elem_classes=elem_classes, render=render, key=key, max_lines=max_lines)
         self.speakers = speakers
         self.emotions = emotions or []
         self.formatter = formatter
         self.separator = separator
+        self.show_submit_button = show_submit_button
+        self.show_copy_button = show_copy_button
     
     def preprocess(self, payload: DialogueModel):
         """
@@ -56,6 +60,10 @@ class Dialogue(Textbox):
             formatter = lambda speaker, text: f"[{speaker}] {text}"
         return self.separator.join([formatter(line.speaker, line.text) for line in payload.root])
 
+    @server
+    async def format(self, value: list[dict]):
+        data = DialogueModel(root=value) # type: ignore
+        return self.preprocess(data)
 
     def postprocess(self, value):
         """

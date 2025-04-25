@@ -1,7 +1,5 @@
 <script lang="ts">
 	import {
-		beforeUpdate,
-		afterUpdate,
 		createEventDispatcher,
 		tick
 	} from "svelte";
@@ -25,124 +23,125 @@
 	export let max_lines: number | undefined = undefined;
 	export let show_copy_button = false;
 	export let root: string;
+	export let show_submit_button: boolean = true;
+
+	export let server: {
+    	format: (body: DialogueLine[]) => Promise<string>;
+  	};
 
 
-	let dialogueLines: DialogueLine[] = [];
+	let dialogue_lines: DialogueLine[] = [];
+	let dialogue_container_element: HTMLDivElement; // Reference to the container
 	
 	// Emotion autocomplete state
 	let showEmotionMenu = false;
 	let currentLineIndex = -1;
 	let emotionMenuPosition = { x: 0, y: 0 };
-	let filteredEmotions: string[] = [];
-	let inputElements: HTMLInputElement[] = [];
+	let filtered_emotions: string[] = [];
+	let input_elements: HTMLInputElement[] = [];
 	let old_value = JSON.stringify(value);
 
 	// Initialize the component
-	$: if (value.length === 0 && dialogueLines.length === 0) {
-		dialogueLines = [{ speaker: speakers[0], text: "" }];
+	$: if (value.length === 0 && dialogue_lines.length === 0) {
+		dialogue_lines = [{ speaker: speakers[0], text: "" }];
 	}
 
-	$: console.log("value", value);
-
-
-	// Keep track of dialogueLines length changes to ensure inputElements array is updated
 	$: {
 		// Ensure inputElements array has the same length as dialogueLines
-		if (dialogueLines.length > inputElements.length) {
+		if (dialogue_lines.length > input_elements.length) {
 			// Add null placeholders for new lines
-			inputElements = [
-				...inputElements,
-				...Array(dialogueLines.length - inputElements.length).fill(null)
+			input_elements = [
+				...input_elements,
+				...Array(dialogue_lines.length - input_elements.length).fill(null)
 			];
-		} else if (dialogueLines.length < inputElements.length) {
+		} else if (dialogue_lines.length < input_elements.length) {
 			// Trim extra elements
-			inputElements = inputElements.slice(0, dialogueLines.length);
+			input_elements = input_elements.slice(0, dialogue_lines.length);
 		}
 	}
 
 	function add_line(index: number): void {
 		const newSpeaker = speakers.length > 0 ? speakers[0] : "";
-		dialogueLines = [
-			...dialogueLines.slice(0, index + 1),
+		dialogue_lines = [
+			...dialogue_lines.slice(0, index + 1),
 			{ speaker: newSpeaker, text: "" },
-			...dialogueLines.slice(index + 1)
+			...dialogue_lines.slice(index + 1)
 		];
 		
 		// Focus the new input after render cycle
 		tick().then(() => {
-			if (inputElements[index + 1]) {
-				inputElements[index + 1].focus();
+			if (input_elements[index + 1]) {
+				input_elements[index + 1].focus();
 			}
 		});
 	}
 
-	function deleteLine(index: number): void {
-		dialogueLines = [
-			...dialogueLines.slice(0, index),
-			...dialogueLines.slice(index + 1)
+	function delete_line(index: number): void {
+		dialogue_lines = [
+			...dialogue_lines.slice(0, index),
+			...dialogue_lines.slice(index + 1)
 		];
 	}
 
 	function update_line(index: number, key: keyof DialogueLine, value: string): void {
-		dialogueLines[index][key] = value;
-		dialogueLines = [...dialogueLines];
+		dialogue_lines[index][key] = value;
+		dialogue_lines = [...dialogue_lines];
 	}
 
-	// Handle input events to show emotion menu when ":" is typed
 	function handle_input(event: Event, index: number): void {
 		const input = event.target as HTMLInputElement;
-		// Store reference without losing existing references
-		if (input && !inputElements[index]) {
-			inputElements[index] = input;
+		if (input && !input_elements[index]) {
+			input_elements[index] = input;
 		}
 		
-		const cursorPosition = input.selectionStart || 0;
+		const cursor_position = input.selectionStart || 0;
 		const text = input.value;
-		
-		if (text[cursorPosition - 1] === ':') {
+		let show_menu = false;
+    	let position_reference_index = -1; // Index in text used for caret position calculation
+
+		if (text[cursor_position - 1] === ':') {
 			currentLineIndex = index;
-			
-			// Calculate position for the autocomplete menu
-			const rect = input.getBoundingClientRect();
-			console.log("rect", rect);
-			const caret_position = get_caret_position(input, cursorPosition);
-			
-			emotionMenuPosition = {
-				x: rect.left + caret_position,
-				y: index * rect.height
-			};
-			
-			// Show emotion menu with filtered emotions
-			const searchText = get_emotion_search_text(text, cursorPosition);
-			filteredEmotions = emotions.filter(emotion => 
-				searchText === '' || emotion.toLowerCase().includes(searchText.toLowerCase())
+			position_reference_index = cursor_position; 
+			const search_text = get_emotion_search_text(text, cursor_position);
+			filtered_emotions = emotions.filter(emotion => 
+				search_text === '' || emotion.toLowerCase().includes(search_text.toLowerCase())
 			);
-			showEmotionMenu = filteredEmotions.length > 0;
+			show_menu = filtered_emotions.length > 0;
 		} else {
 			// Check if we're still typing in an emotion context
-			const lastColonIndex = text.lastIndexOf(':', cursorPosition - 1);
-			if (lastColonIndex >= 0 && !text.substring(lastColonIndex + 1, cursorPosition).includes(' ')) {
+			const lastColonIndex = text.lastIndexOf(':', cursor_position - 1);
+			if (lastColonIndex >= 0 && !text.substring(lastColonIndex + 1, cursor_position).includes(' ')) {
 				currentLineIndex = index;
-				
-				// Calculate position for the autocomplete menu
-				const rect = input.getBoundingClientRect();
-				console.log("rect", rect);
-				const caretPosition = get_caret_position(input, lastColonIndex + 1);
-				
-				emotionMenuPosition = {
-					x: rect.left + caretPosition,
-					y: 0
-				};
-				
-				// Filter emotions based on what's been typed after the colon
-				const searchText = text.substring(lastColonIndex + 1, cursorPosition);
-				filteredEmotions = emotions.filter(emotion => 
+				position_reference_index = lastColonIndex + 1; // Position menu relative to the start of the potential emotion
+				const searchText = text.substring(lastColonIndex + 1, cursor_position);
+				filtered_emotions = emotions.filter(emotion => 
 					searchText === '' || emotion.toLowerCase().includes(searchText.toLowerCase())
 				);
-				showEmotionMenu = filteredEmotions.length > 0;
-			} else {
-				showEmotionMenu = false;
+				show_menu = filtered_emotions.length > 0;
 			}
+		}
+
+		if (show_menu && position_reference_index !== -1 && dialogue_container_element) {
+			const container_rect = dialogue_container_element.getBoundingClientRect();
+			const input_rect = input.getBoundingClientRect();
+			// Calculate the horizontal pixel offset of the character at positionReferenceIndex
+			const caret_pixel_offset = get_caret_position(input, position_reference_index);
+
+			// Calculate caret's absolute screen position
+			// X: Input's left edge + caret's offset within the input
+			// Y: Input's bottom edge (to position menu below)
+			const caretScreenX = input_rect.left + caret_pixel_offset;
+			const caretScreenY = input_rect.bottom; 
+
+			// Convert absolute screen position to position relative to the container's top-left corner
+			emotionMenuPosition = {
+				x: caretScreenX - container_rect.left,
+				y: caretScreenY - container_rect.top
+			};
+			
+			showEmotionMenu = true;
+		} else {
+			showEmotionMenu = false;
 		}
 	}
 
@@ -169,9 +168,9 @@
 	}
 
 	function insert_emotion(emotion: string): void {
-		if (currentLineIndex >= 0 && currentLineIndex < dialogueLines.length) {
-			const text = dialogueLines[currentLineIndex].text;
-			const currentInput = inputElements[currentLineIndex];
+		if (currentLineIndex >= 0 && currentLineIndex < dialogue_lines.length) {
+			const text = dialogue_lines[currentLineIndex].text;
+			const currentInput = input_elements[currentLineIndex];
 			const cursorPosition = currentInput?.selectionStart || 0;
 			
 			// Find the last colon before cursor
@@ -187,9 +186,9 @@
 				
 				// Move cursor to after the inserted emotion
 				tick().then(() => {
-					const updatedInput = inputElements[currentLineIndex];
+					const updatedInput = input_elements[currentLineIndex];
 					if (updatedInput) {
-						const newCursorPosition = lastColonIndex + emotion.length + 1; // +3 for ":" and ": "
+						const newCursorPosition = lastColonIndex + emotion.length + 1;
 						updatedInput.setSelectionRange(newCursorPosition, newCursorPosition);
 						updatedInput.focus();
 					}
@@ -238,20 +237,23 @@
 		}
 	}
 
+	console.log("emotions", emotions)
 
-	$: sync_value(dialogueLines);
+
+	$: sync_value(dialogue_lines);
 
 	// Update on value changes from outside
 	$: if (JSON.stringify(value) !== old_value) {
 		handle_change();
 		old_value = JSON.stringify(value);
-		dialogueLines = [...value];
+		dialogue_lines = [...value];
 	}
 
 	async function handle_copy(): Promise<void> {
 		if ("clipboard" in navigator) {
-			await navigator.clipboard.writeText(JSON.stringify(value));
-			dispatch("copy", { value: JSON.stringify(value) });
+			const text = await server.format(value)
+			await navigator.clipboard.writeText(text);
+			dispatch("copy", { value: text });
 			copy_feedback();
 		}
 	}
@@ -293,8 +295,8 @@
 	<!-- svelte-ignore missing-declaration -->
 	<BlockTitle {root} {show_label} {info}>{label}</BlockTitle>
 
-	<div class="dialogue-container">
-		{#each dialogueLines as line, i}
+	<div class="dialogue-container" bind:this={dialogue_container_element}>
+		{#each dialogue_lines as line, i}
 			<div class="dialogue-line">
 				<div class="speaker-column">
 					<BaseDropdown
@@ -321,7 +323,7 @@
 								event.preventDefault();
 							}
 						}}
-							bind:this={inputElements[i]}
+							bind:this={input_elements[i]}
 						/>
 					</div>
 				</div>
@@ -341,7 +343,7 @@
 				<div class="action-column">
 					<button 
 						class="delete-button" 
-						on:click={() => deleteLine(i)}
+						on:click={() => delete_line(i)}
 						aria-label="Remove current line"
 						disabled={disabled}
 					>
@@ -359,7 +361,7 @@
 				style="left: {emotionMenuPosition.x}px; top: {emotionMenuPosition.y}px;"
 				transition:fade={{ duration: 100 }}
 			>
-				{#each filteredEmotions as emotion}
+				{#each filtered_emotions as emotion}
 					<button 
 						class="emotion-item" 
 						on:click={() => insert_emotion(emotion)}
@@ -371,15 +373,17 @@
 		{/if}
 	</div>
 
-	<div class="submit-container">
-		<button
-			class="submit-button"
-			on:click={handle_submit}
-			disabled={disabled}
-		>
-			<Send />
-		</button>
-	</div>
+	{#if show_submit_button}
+		<div class="submit-container">
+			<button
+				class="submit-button"
+				on:click={handle_submit}
+				disabled={disabled}
+			>
+				<Send />
+			</button>
+		</div>
+	{/if}
 </label>
 
 <style>
@@ -478,14 +482,13 @@
 		position: absolute;
 		max-height: 200px;
 		max-width: 300px;
-		overflow-y: auto;
+		overflow-y: scroll;
 		background: var(--background-fill-primary);
 		border: 1px solid var(--border-color-primary);
 		box-shadow: var(--shadow-drop-lg);
 		border-radius: var(--container-radius);
 		z-index: 100;
 		display: flex;
-
 		flex-direction: column;
 	}
 

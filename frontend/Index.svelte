@@ -23,6 +23,9 @@
 		copy: CopyData;
 	}>;
 
+	export let server: {
+    	format: (body: DialogueLine[]) => Promise<string>;
+  	};
 
 	export let label = "Dialogue";
 	export let speakers: string[] = [];
@@ -43,6 +46,7 @@
 	export let value_is_output = false;
 	export let interactive: boolean;
 	export let root: string;
+	export let show_submit_button: boolean = true;
 </script>
 
 
@@ -78,6 +82,8 @@
 		{speakers}
 		{emotions}
 		{placeholder}
+		{show_submit_button}
+		{server}
 		on:change={() => gradio.dispatch("change", value)}
 		on:input={() => gradio.dispatch("input")}
 		on:submit={() => gradio.dispatch("submit")}

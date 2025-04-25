@@ -6,10 +6,10 @@ from gradio_dialogue import Dialogue
 with gr.Blocks() as demo:
     with gr.Tabs():
         with gr.Tab("Dialogue Demo"):
-            Dialogue(interactive=True, emotions=["laugh", "sigh"], speakers=["Speaker 1", "Speaker 2"])
+            Dialogue(interactive=True, emotions=["(laugh)", "(sigh)", "(scream)", "(cry)", "(groan)"], speakers=["Speaker 1", "Speaker 2"])
         with gr.Tab("Component  Functions"):
             gr.Markdown("## Component Functions")
-            dialogue = Dialogue(emotions=["laugh", "sigh"], speakers=["S1", "S2"])
+            dialogue = Dialogue(emotions=["laugh", "sigh"], speakers=["S1", "S2"], show_submit_button=False)
             textbox = gr.Textbox(label="Textbox")
             with gr.Row():
                 with gr.Column():
