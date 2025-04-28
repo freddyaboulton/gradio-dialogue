@@ -32,15 +32,14 @@
 
 
 	let dialogue_lines: DialogueLine[] = [];
-	let dialogue_container_element: HTMLDivElement; // Reference to the container
+	let dialogue_container_element: HTMLDivElement;
 	
-	// Emotion autocomplete state
 	let showEmotionMenu = false;
 	let currentLineIndex = -1;
 	let filtered_emotions: string[] = [];
 	let input_elements: HTMLInputElement[] = [];
 	let old_value = JSON.stringify(value);
-
+	let offset_from_top = 0;
 	$: if (value.length === 0 && dialogue_lines.length === 0) {
 		dialogue_lines = [{ speaker: speakers[0], text: "" }];
 	}
@@ -92,7 +91,7 @@
 		const cursor_position = input.selectionStart || 0;
 		const text = input.value;
 		let show_menu = false;
-    	let position_reference_index = -1; // Index in text used for caret position calculation
+    	let position_reference_index = -1;
 
 		if (text[cursor_position - 1] === ':') {
 			currentLineIndex = index;
@@ -103,7 +102,6 @@
 			);
 			show_menu = filtered_emotions.length > 0;
 		} else {
-			// Check if we're still typing in an emotion context
 			const lastColonIndex = text.lastIndexOf(':', cursor_position - 1);
 			if (lastColonIndex >= 0 && !text.substring(lastColonIndex + 1, cursor_position).includes(' ')) {
 				currentLineIndex = index;
@@ -118,6 +116,11 @@
 
 		if (show_menu && position_reference_index !== -1 && dialogue_container_element) {
 			showEmotionMenu = true;
+			const input_rect = input.getBoundingClientRect();
+			// Position menu below the current input by calculating the distance from the top of the container
+			// and use 1.5 times the input height.
+			const container_rect = dialogue_container_element.getBoundingClientRect();
+			offset_from_top = container_rect.top + input_rect.height * (index + 1.5);
 		} else {
 			showEmotionMenu = false;
 		}
@@ -148,7 +151,6 @@
 				
 				update_line(currentLineIndex, "text", newText);
 				
-				// Move cursor to after the inserted emotion
 				tick().then(() => {
 					const updatedInput = input_elements[currentLineIndex];
 					if (updatedInput) {
@@ -325,7 +327,10 @@
 					choices={emotions.map((s, i) => [s, i])}
 					filtered_indices={filtered_emotions.map(s => emotions.indexOf(s))}
 					show_options={true}
-					on:change={(e) => insert_emotion(e)}/>
+					on:change={(e) => insert_emotion(e)}
+					offset_from_top={offset_from_top}
+					from_top={true}
+				/>
 			</div>
 		{/if}
 	</div>
